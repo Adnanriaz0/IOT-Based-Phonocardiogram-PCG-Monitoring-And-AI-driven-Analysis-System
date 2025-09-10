@@ -1164,7 +1164,7 @@ const NewsletterSection = ({ t, themeColors, email, setEmail, subscribed, handle
                             <input
                                 type="email"
                                 value={email}
-                                onChange={(e) => { setEmail(e.target.value); if (error) setError(""); }}
+                                onChange={(e) => { setEmail(e.target.value); if (error) useState(""); }}
                                 placeholder={t('yourEmail')}
                                 className={`flex-grow p-3 rounded-md border ${themeColors.cardBorderClass} ${themeColors.cardBgClass} ${themeColors.textColorClass} focus:ring-blue-500 focus:border-blue-500`}
                                 aria-label="Email for newsletter"
@@ -1347,18 +1347,18 @@ const HomePage = ({
 const LoginPage = ({ t, themeColors, onLoginSuccess, onGoBack }) => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
+    const [error, useState] = useState('');
 
     const handleLoginSubmit = (e) => {
         e.preventDefault();
-        setError('');
+        useState('');
 
         // Simple validation and simulated login
         if (username === 'user' && password === 'password') { // Replace with actual auth logic
             onLoginSuccess();
             toast.success(t('loginSuccess'));
         } else {
-            setError(t('invalidCredentials'));
+            useState(t('invalidCredentials'));
             toast.error(t('invalidCredentials'));
         }
     };
