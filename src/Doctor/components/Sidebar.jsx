@@ -38,13 +38,23 @@ const Sidebar = ({ doctor, themeColors, scrollToSection, activeSection, setIsMob
 
 <div className="mb-6 text-center">
   <img 
-    src={doctor?.profilePic || "/default-avatar.png"} 
-    alt={t('name')} 
-    className={`w-28 h-28 rounded-full border-4 border-blue-500 object-cover mx-auto mb-4 ${themeColors.shadowClass}`} 
-  />
-  <h3 className={`text-xl font-bold ${themeColors.textColorClass}`}>Dr. {doctor?.fullName || 'Doctor Name'}</h3>
-  <p className={`text-sm text-gray-600 dark:text-gray-400`}>{doctor?.specialization || 'specialization not set'}</p>
-  <p className={`text-sm text-gray-600 dark:text-gray-400`}>{doctor?.email || 'doctor@example.com'}</p>
+  src={doctor?.profilePic?.trim() ? doctor.profilePic : "/default-avatar.png"} 
+  alt={doctor?.name || "Doctor Avatar"} 
+  className={`w-28 h-28 rounded-full border-4 border-blue-500 object-cover mx-auto mb-4 ${themeColors.shadowClass}`} 
+/>
+
+<h3 className={`text-xl font-bold ${themeColors.textColorClass}`}>
+  {doctor?.fullName?.trim() || "Doctor Name"}
+</h3>
+
+<p className="text-sm text-gray-600 dark:text-gray-400">
+  {doctor?.specialization?.trim() || "Specialization not set"}
+</p>
+
+<p className="text-sm text-gray-600 dark:text-gray-400">
+  {doctor?.email?.trim() || "doctor@example.com"}
+</p>
+
 </div>
 
 

@@ -1,11 +1,12 @@
 // components/PatientProfileEditor.js
-import React, { useCallback, useState } from 'react';
+
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { toast } from 'react-toastify';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import Card from './Card'; // Assuming Card component is in the same 'components' directory
+import React, { useEffect, useCallback, useState } from 'react';
 
 /**
  * PatientProfileEditor Component: Handles editing patient profile information and password changes.
@@ -52,6 +53,17 @@ const PatientProfileEditor = ({
         }));
     }, [setEditablePatientData]);
 
+    // ✅ Add this useEffect to load from localStorage
+    useEffect(() => {
+        const saved = localStorage.getItem("patientData");
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            setPatientData(parsed);
+            setEditablePatientData(parsed);
+        }
+    }, []);
+
+
     const handleCancelEdit = useCallback(() => {
         setEditablePatientData(patientData); // Revert changes
         setIsEditingProfile(false);
@@ -73,81 +85,87 @@ const PatientProfileEditor = ({
         }
     }, [passwordFields, t, setPasswordFields]);
 
-    const handleSaveProfile = useCallback(async () => {
-        try {
-            const payload = {
-                id: editablePatientData.id || patientData.id,
-                ...editablePatientData,
-                contact: { ...editablePatientData.contact },
-                emergencyContact: { ...editablePatientData.emergencyContact },
-                medicalConditions: Array.isArray(editablePatientData.medicalConditions)
-                    ? editablePatientData.medicalConditions
-                    : (editablePatientData.medicalConditions || '')
-                        .split(',')
-                        .map((item) => item.trim()),
-                allergies: Array.isArray(editablePatientData.allergies)
-                    ? editablePatientData.allergies
-                    : (editablePatientData.allergies || '')
-                        .split(',')
-                        .map((item) => item.trim()),
-            };
+   const handleSaveProfile = useCallback(async () => {
+    try {
+        const payload = {
+            id: editablePatientData.id || patientData.id,
+            ...editablePatientData,
+            contact: { ...editablePatientData.contact },
+            emergencyContact: { ...editablePatientData.emergencyContact },
+            medicalConditions: Array.isArray(editablePatientData.medicalConditions)
+                ? editablePatientData.medicalConditions
+                : (editablePatientData.medicalConditions || '')
+                    .split(',')
+                    .map((item) => item.trim()),
+            allergies: Array.isArray(editablePatientData.allergies)
+                ? editablePatientData.allergies
+                : (editablePatientData.allergies || '')
+                    .split(',')
+                    .map((item) => item.trim()),
+        };
 
-            const token = localStorage.getItem("token");
+        const token = localStorage.getItem("token");
 
-            if (!token || token === "null") {
-                toast.error("🔒 Session expired. Please login again.");
-                localStorage.clear();
-                navigate("/login");
-                return;
-            }
-
-            let decoded;
-            try {
-                decoded = JSON.parse(atob(token.split('.')[1]));
-                if (decoded.exp * 1000 < Date.now()) {
-                    toast.error("⏰ Session expired. Logging out...");
-                    localStorage.removeItem("token");
-                    setTimeout(() => {
-                        window.location.href = "/login";
-                    }, 1000);
-                    return;
-                }
-            } catch (err) {
-                toast.error("⚠️ Invalid token. Please login again.");
-                localStorage.removeItem("token");
-                window.location.href = "/login";
-                return;
-            }
-
-            const response = await axios.post(
-                "http://localhost:5000/api/patient/profile",
-                payload,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
-
-            setEditablePatientData(response.data.profile);
-            setPatientData(response.data.profile); // Update parent's patientData
-            setIsEditingProfile(false);
-            toast.success("✅ Profile updated successfully");
-
-        } catch (error) {
-            console.error("❌ Failed to save:", error);
-            const message =
-                error.response?.data?.message ||
-                error.response?.data?.msg ||
-                (error.response?.status === 404
-                    ? "❌ API not found (404)"
-                    : error.response?.status === 401
-                        ? "🔒 Unauthorized or Token expired"
-                        : "❌ Failed to save profile");
-
-            toast.error(message);
+        if (!token || token === "null") {
+            toast.error("🔒 Session expired. Please login again.");
+            localStorage.clear();
+            navigate("/login");
+            return;
         }
-    }, [editablePatientData, patientData.id, navigate, setEditablePatientData, setPatientData, setIsEditingProfile, t]);
+
+        let decoded;
+        try {
+            decoded = JSON.parse(atob(token.split('.')[1]));
+            if (decoded.exp * 1000 < Date.now()) {
+                toast.error("⏰ Session expired. Logging out...");
+                localStorage.removeItem("token");
+                setTimeout(() => {
+                    window.location.href = "/login";
+                }, 1000);
+                return;
+            }
+        } catch (err) {
+            toast.error("⚠️ Invalid token. Please login again.");
+            localStorage.removeItem("token");
+            window.location.href = "/login";
+            return;
+        }
+
+        const response = await axios.post(
+            "http://localhost:5000/api/patient/profile",
+            payload,
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            }
+        );
+
+        const updatedProfile = response.data.profile;
+
+        // ✅ Save to localStorage so it's persisted on reload
+        localStorage.setItem("patientData", JSON.stringify(updatedProfile));
+
+        setEditablePatientData(updatedProfile);
+        setPatientData(updatedProfile);
+        setIsEditingProfile(false);
+        toast.success("✅ Profile updated successfully");
+    } catch (error) {
+        console.error("❌ Failed to save:", error);
+        const message =
+            error.response?.data?.message ||
+            error.response?.data?.msg ||
+            (error.response?.status === 404
+                ? "❌ API not found (404)"
+                : error.response?.status === 401
+                    ? "🔒 Unauthorized or Token expired"
+                    : "❌ Failed to save profile");
+
+        toast.error(message);
+    }
+}, [editablePatientData, patientData.id, navigate, setEditablePatientData, setPatientData, setIsEditingProfile, t]);
+
+
 
     return (
         <Card

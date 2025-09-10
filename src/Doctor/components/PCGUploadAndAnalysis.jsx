@@ -1,21 +1,11 @@
-// PCGUploadAndAnalysis.jsx
 import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'react-toastify';
 import { CheckCircleIcon } from '@heroicons/react/24/outline';
-import Card from './Card'; // Card component ko import kiya gaya
-import StatusBadge from './StatusBadge'; // StatusBadge component ko import kiya gaya
-import PCGWaveform from './PCGWaveform'; // PCGWaveform component ko import kiya gaya
+import Card from './Card';
+import StatusBadge from './StatusBadge';
+import axios from 'axios';
 
-/**
- * PCGUploadAndAnalysis Component: Allows doctors to upload heart sound files for simulated CNN analysis.
- * Displays analysis results and allows saving them as a new patient report.
- * @param {object} props - Component props.
- * @param {object} props.themeColors - Theme-specific colors.
- * @param {function} props.onNewPcgReport - Callback to add a new PCG report.
- * @param {function} props.onUpdateLivePcgData - Callback to update live PCG data.
- * @param {Array<object>} props.patients - List of patients for ID validation.
- */
 const PCGUploadAndAnalysis = ({ themeColors, onNewPcgReport, onUpdateLivePcgData, patients }) => {
     const { t } = useTranslation();
     const [selectedFile, setSelectedFile] = useState(null);
@@ -23,104 +13,79 @@ const PCGUploadAndAnalysis = ({ themeColors, onNewPcgReport, onUpdateLivePcgData
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisResult, setAnalysisResult] = useState(null);
 
-    // Handles file selection from the input
     const handleFileChange = (event) => {
         const file = event.target.files[0];
-        if (file && (file.type === 'audio/wav' || file.type === 'audio/mpeg')) { // Check for .wav or .mp3
+        if (file && (file.type === 'audio/wav' || file.type === 'audio/mpeg')) {
             setSelectedFile(file);
-            setAnalysisResult(null); // Clear previous results
+            setAnalysisResult(null);
         } else {
             setSelectedFile(null);
             toast.error("Please select a valid .wav or .mp3 audio file.");
         }
     };
 
-    // Simulates CNN model analysis
-    const simulateCNNAnalysis = useCallback(async (file, patientId) => {
-        setIsAnalyzing(true);
-        setAnalysisResult(null);
+    const realCNNAnalysis = useCallback(async (file, patientId) => {
+        try {
+            setIsAnalyzing(true);
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('patientId', patientId);
 
-        // Simulate API call delay
-        await new Promise(resolve => setTimeout(resolve, 3000));
+            // Step 1: Flask Prediction
+            const response = await axios.post('http://localhost:5000/predict', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
 
-        // Simulate CNN model output
-        const classifications = ['Normal', 'Murmur', 'Extrasystole', 'Valve Disorder', 'Extra Sounds'];
-        const randomClassification = classifications[Math.floor(Math.random() * classifications.length)];
-        const randomHeartRate = Math.floor(Math.random() * (90 - 60 + 1)) + 60;
-        const randomMurmurPresence = parseFloat((Math.random() * 0.8).toFixed(2)); // Higher chance of murmur for simulation
-        const randomPcgScore = Math.floor(Math.random() * (99 - 40 + 1)) + 40;
-        const randomS1Amplitude = Math.floor(Math.random() * (90 - 50 + 1)) + 50;
-        const randomS2Frequency = Math.floor(Math.random() * (130 - 90 + 1)) + 90;
-        const randomMurmurType = randomClassification === 'Murmur' ? ['Systolic', 'Diastolic', 'Continuous'][Math.floor(Math.random() * 3)] : 'None';
-        const randomS3Presence = Math.random() > 0.7; // 30% chance
-        const randomS4Presence = Math.random() > 0.8; // 20% chance
+            const result = response.data;
 
-        const simulatedReport = {
-            id: `rep${Date.now()}`,
-            patientId: patientId,
-            patientName: patients.find(p => p.id === patientId)?.name || 'Unknown Patient',
-            date: new Date().toISOString().split('T')[0],
-            type: 'PCG Analysis', // Default type for uploaded reports
-            status: 'Completed', // Automatically completed after analysis
-            classification: randomClassification,
-            fileUrl: URL.createObjectURL(file), // Use blob URL for uploaded file
-            content: `Simulated PCG analysis for patient ${patientId}. Classification: ${randomClassification}. Heart rate: ${randomHeartRate} bpm. Murmur presence: ${randomMurmurPresence * 100}%.`,
-            pcgMetrics: {
-                s1Amplitude: randomS1Amplitude,
-                s2Frequency: randomS2Frequency,
-                murmurPresence: randomMurmurPresence,
-                pcgScore: randomPcgScore,
-                murmurType: randomMurmurType,
-                s3Presence: randomS3Presence,
-                s4Presence: randomS4Presence,
-                heartRate: randomHeartRate,
-            },
-            doctorNotes: `Automated analysis suggests ${randomClassification.toLowerCase()} heart sounds. Further clinical correlation recommended.`,
-            audioFile: URL.createObjectURL(file), // Use blob URL for uploaded file
-            imageFile: `https://placehold.co/400x200/${Math.floor(Math.random()*16777215).toString(16)}/FFFFFF?text=Simulated+Waveform`, // Placeholder image
-        };
+            if (!result || !result.pcgMetrics) {
+                toast.error("Model did not return valid analysis.");
+                return;
+            }
 
-        setIsAnalyzing(false);
-        setAnalysisResult(simulatedReport);
-        toast.success(t('analysisComplete'));
+            const fullResult = {
+                ...result,
+                audioFile: URL.createObjectURL(file),
+            };
 
-        // Add the new report to the main reports list
-        onNewPcgReport(simulatedReport);
+            setAnalysisResult(fullResult);
 
-        // Update live PCG data with the new analysis result
-        onUpdateLivePcgData({
-            heartRate: simulatedReport.pcgMetrics.heartRate,
-            classification: simulatedReport.classification,
-            timestamp: new Date(),
-            murmurPresence: simulatedReport.pcgMetrics.murmurPresence,
-            s3Presence: simulatedReport.pcgMetrics.s3Presence, // Update S3 presence
-            s4Presence: simulatedReport.pcgMetrics.s4Presence, // Update S4 presence
-        });
+            // Step 2: Save to MongoDB backend
+            const saveRes = await axios.post('/api/pcg/upload-pcg-report', {
+                ...result,
+                patientId,
+            });
 
-    }, [t, onNewPcgReport, onUpdateLivePcgData, patients]);
+            if (saveRes.data.success) {
+                toast.success("Analysis saved and completed!");
+            } else {
+                toast.warning("Analysis done but failed to save to database.");
+            }
 
-    // Handles the "Analyze" button click
+            // Step 3: Notify parent
+            if (onNewPcgReport) onNewPcgReport(fullResult);
+            if (onUpdateLivePcgData) onUpdateLivePcgData(fullResult);
+
+        } catch (error) {
+            console.error("Error during analysis:", error);
+            toast.error("Analysis failed. Please try again.");
+        } finally {
+            setIsAnalyzing(false);
+        }
+    }, [onNewPcgReport, onUpdateLivePcgData]);
+
     const handleAnalyzeClick = () => {
-        if (!selectedFile) {
-            toast.error(t('noFileSelected'));
-            return;
-        }
-        if (!patientId) {
-            toast.error(t('enterPatientIdForAnalysis'));
-            return;
-        }
+        if (!selectedFile) return toast.error(t('noFileSelected'));
+        if (!patientId) return toast.error(t('enterPatientIdForAnalysis'));
         const patientExists = patients.some(p => p.id === patientId);
-        if (!patientExists) {
-            toast.error(t('patientNotFound', { patientId }));
-            return;
-        }
-        simulateCNNAnalysis(selectedFile, patientId);
+        if (!patientExists) return toast.error(t('patientNotFound', { patientId }));
+
+        realCNNAnalysis(selectedFile, patientId);
     };
 
     return (
         <Card title={t('uploadHeartSound')} themeColors={themeColors} className="col-span-full">
             <div className="space-y-4">
-                {/* Patient ID Input */}
                 <div>
                     <label htmlFor="patientIdForAnalysis" className={`block text-sm font-medium ${themeColors.textColorClass}`}>
                         {t('patientIdForAnalysis')}
@@ -135,7 +100,6 @@ const PCGUploadAndAnalysis = ({ themeColors, onNewPcgReport, onUpdateLivePcgData
                     />
                 </div>
 
-                {/* File Input */}
                 <div>
                     <label htmlFor="heartSoundFile" className={`block text-sm font-medium ${themeColors.textColorClass}`}>
                         {t('selectFile')}
@@ -146,27 +110,14 @@ const PCGUploadAndAnalysis = ({ themeColors, onNewPcgReport, onUpdateLivePcgData
                             id="heartSoundFile"
                             accept=".wav,.mp3"
                             onChange={handleFileChange}
-                            className={`block w-full text-sm ${themeColors.textColorClass}
-                                        file:mr-4 file:py-2 file:px-4
-                                        file:rounded-full file:border-0
-                                        file:text-sm file:font-semibold
-                                        file:bg-blue-50 file:text-blue-700
-                                        hover:file:bg-blue-100 cursor-pointer`}
+                            className={`block w-full text-sm ${themeColors.textColorClass} file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer`}
                         />
-                        {selectedFile && (
-                            <span className={`text-sm text-gray-500 dark:text-gray-400`}>
-                                {selectedFile.name}
-                            </span>
-                        )}
-                        {!selectedFile && (
-                            <span className={`text-sm text-gray-500 dark:text-gray-400`}>
-                                {t('noFileSelected')}
-                            </span>
-                        )}
+                        <span className={`text-sm text-gray-500 dark:text-gray-400`}>
+                            {selectedFile ? selectedFile.name : t('noFileSelected')}
+                        </span>
                     </div>
                 </div>
 
-                {/* Analyze Button */}
                 <button
                     onClick={handleAnalyzeClick}
                     disabled={!selectedFile || isAnalyzing || !patientId}
@@ -176,7 +127,7 @@ const PCGUploadAndAnalysis = ({ themeColors, onNewPcgReport, onUpdateLivePcgData
                         <>
                             <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zM6 17.29A8 8 0 014 12H0c0 3.04 1.13 5.82 3 7.94l3-2.65z"></path>
                             </svg>
                             {t('analyzing')}
                         </>
@@ -187,7 +138,6 @@ const PCGUploadAndAnalysis = ({ themeColors, onNewPcgReport, onUpdateLivePcgData
                     )}
                 </button>
 
-                {/* Analysis Result Display */}
                 {analysisResult && (
                     <div className={`mt-6 p-6 rounded-lg ${themeColors.reportBgClass} ${themeColors.reportBorderClass}`}>
                         <h3 className={`text-lg font-semibold ${themeColors.textColorClass} mb-3 flex items-center`}>
@@ -212,18 +162,18 @@ const PCGUploadAndAnalysis = ({ themeColors, onNewPcgReport, onUpdateLivePcgData
                         <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed italic border-l-4 border-blue-500 pl-3">
                             {analysisResult.doctorNotes || "No specific notes for this report."}
                         </p>
+
                         {analysisResult.audioFile && (
                             <div className="mt-4">
                                 <h4 className={`text-md font-semibold ${themeColors.textColorClass} mb-2`}>{t('pcgAudio')}</h4>
-                                <audio controls src={analysisResult.audioFile} className="w-full">
-                                    Your browser does not support the audio element.
-                                </audio>
+                                <audio controls src={analysisResult.audioFile} className="w-full" />
                             </div>
                         )}
+
                         {analysisResult.imageFile && (
                             <div className="mt-4">
                                 <h4 className={`text-md font-semibold ${themeColors.textColorClass} mb-2`}>{t('pcgImage')}</h4>
-                                <img src={analysisResult.imageFile} alt="Simulated PCG Waveform" className="w-full h-auto rounded-lg" onError={(e) => e.target.src = "https://placehold.co/400x200/CCCCCC/000000?text=Image+Not+Available"}/>
+                                <img src={analysisResult.imageFile} alt="PCG Waveform" className="w-full h-auto rounded-lg" onError={(e) => e.target.src = "https://placehold.co/400x200/CCCCCC/000000?text=Image+Not+Available"} />
                             </div>
                         )}
                     </div>

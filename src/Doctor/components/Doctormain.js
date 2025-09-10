@@ -791,7 +791,9 @@ ChartJS.register(
     LineElement,
     Title,
     Tooltip,
+    Filler, 
     Legend
+
 );
 
 // --- Theme Configuration ---
@@ -1181,6 +1183,7 @@ const navigate = useNavigate();
     // --- Profile Handlers ---
     const handleProfileUpdate = useCallback((updatedProfile) => {
         setDoctorProfile(updatedProfile);
+        
         toast.success(t('Profile updated successfully!'));
     }, [t]);
 
@@ -1362,6 +1365,7 @@ const navigate = useNavigate();
             {/* Sidebar - only visible on large screens */}
             <Sidebar
                 t={t}
+                
                 doctor={doctorProfile} // Pass doctorProfile state
                 themeColors={themeColors}
                 scrollToSection={scrollToSection}
@@ -1407,7 +1411,10 @@ const navigate = useNavigate();
                                     </button>
                                 </div>
                                 <div className="mt-5 px-2">
+                                   
                                     {/* Mobile sidebar uses the same Sidebar component */}
+
+
                                     <Sidebar
                                         t={t}
                                         doctor={doctorProfile} // Pass doctorProfile state
@@ -1460,6 +1467,7 @@ const navigate = useNavigate();
                             themeColors={themeColors}
                             doctorData={doctorProfile}
                             onProfileUpdate={handleProfileUpdate}
+                            
                         />
                     </section>
 
